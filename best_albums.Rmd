@@ -1,0 +1,393 @@
+---
+title: "Exploring the 500 Greatest Albums"
+author: "David Currie"
+date: "January 7, 2017"
+output: html_document
+---
+
+In 2012, Rolling Stone Magazine published a revised edition of "The 500 Greatest Albums of All Time" (http://www.rollingstone.com/music/lists/500-greatest-albums-of-all-time-20120531). This analysis will explore those albums, their artists, and the trends in the music industry during the relative time span (1955 - 2011).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+
+library(plotly)
+library(plyr)
+library(dplyr)
+library(stringr)
+```
+
+```{r helper functions}
+n = list(title = "Number of Albums") #A common title for the y-axis
+
+fig_h = 6 #height of plots
+fig_w = 9 #width of plots
+
+m = list(t = 100, #typical margin parameters
+         b = 100,
+         pad = 5)
+```
+
+
+```{r}
+df <- read.csv("/Users/Dave/Desktop/Programming/Personal Projects/Greatest_Albums_Kaggle/albumlist.csv")
+```
+
+A summary of the dataset is below
+
+```{r}
+str(df)
+```
+
+# Artists and Albums
+
+```{r fig.height = fig_h, fig.width = fig_w}
+#dataframe of the frequency of artists
+artist_count <- data.frame(table(df$Artist))
+
+#histogram - artists' frequency
+plot_ly(artist_count, x = ~Freq, type = "histogram",
+        marker = list(line = list(color = 'white', width = 1))) %>%
+  layout(title = "Frequency of Artists",
+         xaxis = list(title = "Frequency"),
+         yaxis = n,
+         margin = m)
+
+summary(artist_count$Freq)
+```
+
+Most artists only made the list once, but some appear more frequently. The Beatles, The Rolling Stones, and Bob Dylan all appear ten times.
+
+```{r fig.height = fig_h, fig.width = fig_w}
+#Can't make violin plots with plot_ly, so we need to use this work-around.
+albums_by_band <-ggplot(aes(0, Freq), data = artist_count) +
+  geom_violin(color = 'red') +
+  geom_jitter(aes(text = Var1), alpha = 0.2, color = 'blue', 
+              position=position_jitter(width=.5, height=0))
+
+ggplotly(albums_by_band, tooltip = c("text","y")) %>%
+  layout(title = "Number of Top 500 Albums by Band",
+         yaxis = n,
+         xaxis = list(title = "x-axis", 
+                      showticklabels = FALSE),
+         margin = list(t = 100,
+                       b = 100,
+                       pad = 2))
+```
+
+Just making this list is a great accomplishment, but you can really see how exclusive the club is for artists with multiple albums.
+
+```{r fig.height = fig_h, fig.width = fig_w}
+year_count <- data.frame(table(df$Year))
+
+plot_ly(year_count, x = ~Var1, y = ~Freq, type = "bar") %>%
+  layout(title = "Number of Albums each Year",
+         yaxis = n,
+         xaxis = list(title = "Year"),
+         margin = m)
+
+summary(df$Year)
+```
+
+The mid 1960s to late 1970s seems to have been a prime time for music. 2009 is the only year in this range that does not have at least one album on the list; I guess Rolling Stone Magazine didn't enjoy Wolfgang Amadeus Phoenix, by Phoenix as much as I did...(https://www.youtube.com/watch?v=NhhzV5Xv9Tw)
+
+
+```{r fig.height = fig_h, fig.width = fig_w}
+#find the 10 most common artists
+best_artists <- data.frame(head(sort(table(df$Artist), decreasing = TRUE), 10))
+#change feature name
+best_artists$artists <- names(best_artists$head.sort.table.df.Artist...decreasing...TRUE...10.)
+
+best_artists_histo <- ggplot(aes(fill = Artist, x = Year),
+            data = subset(df, as.character(Artist) %in% best_artists$artists)) +
+  geom_histogram(color = 'white', size = 0.3, bins = 45)
+
+ggplotly(best_artists_histo, tooltip = c("x", "fill")) %>%
+  layout(yaxis = n,
+         legend = list(x = 0.78, y = 0.98,
+                       tracegroupgap = 4),
+         title = "Release Year of Albums by the Top 10 Artists",
+         margin = list(t = 100,
+                       b = 100,
+                       pad = 0))
+```
+
+These ten artists were chosen for having the most albums in the list. Much like the total distribution, the majority of these albums were released before the 1980s, with 1965 being a great year for music.
+
+```{r fig.height = fig_h, fig.width = fig_w}
+#Subtract the minimum decade, then modulo 10
+df$decade <- (df$Year - 1950) %/% 10
+#Multiply by 10 then add earliest decade (1950) to equal the decade for each year.
+df$decade <- (df$decade * 10) + 1950
+df$decade <- factor(df$decade)
+
+plot_ly(df, x = ~decade, type = "histogram") %>%
+  layout(title = "Number of Albums by Decade",
+         yaxis = n,
+         xaxis = list(title = "Decade"),
+         margin = list(t = 100,
+                       b = 100,
+                       m = 3))
+```
+
+Only 2010 and 2011 are included in the 2010s, so I expect this chart will look a little different when Rolling Stone's releases its next edition of the list.
+
+```{r fig.height = fig_h, fig.width = fig_w}
+#find the most common artist by decade
+artist_decade <- df %>% 
+  group_by(decade) %>% 
+  summarise(artist = names(table(Artist))[which.max(table(Artist))])
+
+print("Artist with the most number of albums by decade:")
+artist_decade$artist
+```
+
+#Genres
+
+```{r}
+#11 most common genres (#10 and 11 were tied)
+best_genres <- data.frame(head(sort(table(df$Genre), decreasing = TRUE), 11))
+best_genres$genres <- names(best_genres$head.sort.table.df.Genre...decreasing...TRUE...11.)
+```
+
+```{r fig.height = fig_h, fig.width = fig_w}
+genre_count <- data.frame(table(df$Genre))
+
+genre_histo <-ggplot(aes(0, Freq), data = genre_count) +
+  geom_violin(color = 'red') +
+  geom_jitter(aes(text = Var1), alpha = 0.2, color = 'blue', position=position_jitter(width=.5, height=0))
+
+ggplotly(genre_histo, tooltip = c("text", "Freq")) %>%
+  layout(title = "Genres of the Top 500 Albums",
+         yaxis = list(title = "Number of Albums"),
+         xaxis = list(title = "x-axis", 
+                      showticklabels = FALSE),
+         margin = list(t = 100,
+                       b = 100,
+                       l = 100,
+                       m = 0))
+```
+
+I was really surprised to see Rock being the genre of nearly half of all albums. To make things a little clearer, take a look at the plot below, where the y-axis has been transformed by log10.
+
+```{r fig.height = fig_h, fig.width = fig_w}
+genre_histo_log <-ggplot(aes(0, Freq), data = genre_count) +
+  geom_violin(color = 'red') +
+  geom_point(aes(text = Var1), alpha = 0.2, color = 'blue', position=position_jitter(width=.5, height=0)) +
+  scale_y_continuous(trans='log10')
+
+ggplotly(genre_histo_log, tooltip = c("text")) %>%
+  layout(title = "Genres of the Top 500 Albums (log10)",
+         yaxis = list(title = "Count (log10)"),
+         xaxis = list(title = "x-axis", 
+                      showticklabels = FALSE),
+         margin = list(t = 100,
+                       b = 100,
+                       m = 2))
+```
+
+Funk/Soul comes in at number 2 with 38 albums, another surprise to me, and Hip (and/or) Hop rounds out the top 3 with 29 albums.
+
+```{r fig.height = fig_h, fig.width = fig_w}
+genres_plot <- ggplot(aes(fill = Genre, x = Year),
+            data = subset(df, as.character(Genre) %in% best_genres$genres)) +
+  geom_histogram(color = 'white', size = 0.3, bins = 56) +
+  scale_fill_brewer(type = "qual", palette = 'Spectral')
+
+ggplotly(genres_plot, tooltip = c("x", "fill")) %>%
+  layout(yaxis = n,
+         title = "Popular Genres and their Release Years",
+         legend = list(x = 0.69, y = 0.98,
+                       tracegroupgap = 2),
+         margin = list(t = 100,
+                       b = 100,
+                       l = 100,
+                       pad = 0))
+```
+
+I hope this plot helps you to better understand when a genre of music was more popular. Rock seems to stand the test of time, Jazz was bigger before the 1970s, and Hip Hop makes its debut to the list in 1984.
+
+```{r}
+#find the most common genre by decade
+genre_decade <- df %>% 
+  group_by(decade) %>% 
+  summarise(genre = names(table(Genre))[which.max(table(Genre))])
+
+print("Genre with the most number of albums by decade:")
+genre_decade$genre
+```
+
+```{r fig.height = fig_h, fig.width = fig_w}
+#find the most common genre by year
+genre_year <- df %>% 
+  group_by(Year) %>% 
+  summarise(genre = names(table(Genre))[which.max(table(Genre))])
+```
+
+```{r fig.height = fig_h, fig.width = fig_w}
+plot_ly(genre_year, x = ~Year, y = ~genre, 
+        type = "scatter", 
+        mode = "markers", 
+        color = ~genre, 
+        colors = "Set1",
+        marker = list(size = 10), hoverinfo = c("y+x")) %>%
+  layout(showlegend = FALSE,
+         title = "Most Popular Genre by Year",
+         yaxis = list(title = "Genre"),
+         margin = list(t = 100,
+                       b = 100,
+                       l = 190,
+                       pad = 10))
+```
+
+Another view of how popular rock has been over the years, but Hip Hop looks to becoming the genre of choice.
+
+# Subgenres
+
+```{r fig.height = fig_h, fig.width = fig_w}
+subgenre_count <- data.frame(table(df$Subgenre))
+
+plot_ly(subgenre_count, x = ~Freq, type = "histogram", 
+        marker = list(line = list(color = "white", width = 1))) %>%
+  layout(title = "Frequency of Subgenres",
+         yaxis = n,
+         xaxis = list(title = "Frequency"),
+         margin = m)
+```
+
+Not quite as extreme as with genres, but the majority of subgenres appear only once or twice in the list, with there being two notable exception, 'None' and 'Pop Rock.'
+
+```{r fig.height = fig_h, fig.width = fig_w}
+subgenre_decade <- subset(df, Subgenre != "None") %>% 
+  group_by(decade) %>% 
+  summarise(subgenre = names(table(Subgenre))[which.max(table(Subgenre))])
+
+subgenre_histo <-ggplot(aes(0, Freq), data = subgenre_count) +
+  geom_violin(color = 'red') +
+  geom_jitter(aes(text = Var1), alpha = 0.4, color = 'blue', position=position_jitter(width=.5, height=0))
+
+ggplotly(subgenre_histo, tooltip = c("text", "Freq")) %>%
+  layout(title = "Subgenres of the Top 500 Albums",
+         yaxis = list(title = "Number of Albums"),
+         xaxis = list(title = "x-axis", 
+                      showticklabels = FALSE),
+         margin = list(t = 100,
+                       b = 100,
+                       l = 70,
+                       pad = 0))
+```
+
+The top 3 subgenres, excluding 'None' are: Pop Rock (22), Soul (13), and Indie Rock (12).
+
+```{r fig.height = fig_h, fig.width = fig_w}
+subgenre_year <- df %>% 
+  group_by(Year) %>% 
+  summarise(subgenre = names(table(Subgenre))[which.max(table(Subgenre))])
+
+plot_ly(subgenre_year, x = ~Year, y = ~subgenre, type = "scatter", mode = "markers", color = ~subgenre, colors = "Set1",
+        marker = list(size = 10), hoverinfo = c("y+x")) %>%
+  layout(showlegend = FALSE,
+         yaxis = list(title = "Subgenre"),
+         title = "Most Popular Subgenre by Year",
+         margin = list(t = 100,
+                       b = 100,
+                       l = 285,
+                       pad = 0))
+```
+
+You might be wondering why 'None' is included in this plot. It typically (16 out of 29 times) refers to Hip Hop, so I wanted to included the main Hip Hop subgenre, otherwise it would have been excluded from this plot.
+
+```{r}
+print("Genres that have the subgenre 'None")
+head(sort(table(df$Genre[df$Subgenre == 'None']), decreasing = TRUE), 8)
+```
+
+# Words in Album Titles
+
+```{r fig.height = fig_h, fig.width = fig_w}
+#Album 359 has a formatting issues and does not compute with this method
+subset_df <- subset(df, Number != 359)
+
+#split each album name into individual words
+split_albums <- strsplit(as.character(subset_df$Album), " ")
+
+#Join all of the words into one long list
+split_albums <- paste(split_albums, collapse = ', ')
+
+#remove all of the unwanted character and seperate by a space
+album_words <- data.frame(sort(table(strsplit(gsub("[^0-9A-Za-z///' ]", " ", split_albums), " ")),
+                               decreasing = TRUE))
+#rename features
+album_words$Freq <- album_words$sort.table.strsplit.gsub....0.9A.Za.z..............split_albums...
+album_words$words <- names(album_words$Freq)
+
+#subset out generic words
+album_words <- subset(album_words, ! words %in% c("","c","The","the","of","and","in","to","a",
+                                                  "A","It","at","for","Is","on","In","Are"))
+
+plot_ly(album_words, x = ~Freq, type = "histogram",
+        marker = list(line = list(color = "white", width = 0.5))) %>%
+  layout(title = "Frequency of Words in Album Titles",
+         margin = list(t = 100,
+                       b = 100,
+                       pad = 5),
+         yaxis = list(title = "Count"),
+         xaxis = list(title = "Frequency of Words"))
+```
+
+Exclduing generic words, such as 'the' or 'of', most words are present in album titles once. Just 21 words occur in at least 1% of album titles. 
+
+```{r fig.height = fig_h, fig.width = fig_w}
+album_words_histo <-ggplot(aes(0, Freq), data = album_words) +
+  geom_violin(color = 'red') +
+  geom_jitter(aes(text = words), alpha = 0.3, color = 'blue', position=position_jitter(width=.5, height=0))
+
+ggplotly(album_words_histo, tooltip = c("text", "Freq")) %>%
+  layout(title = "Most Common Words in Album Titles",
+         yaxis = list(title = "Number of Albums"),
+         xaxis = list(title = "x-axis", 
+                      showticklabels = FALSE),
+         margin = list(t = 100,
+                       b = 100,
+                       pad = 0))
+```
+
+As some of you may have been able to guess, 'Love' is the most common word, appearing in the title of 10 albums.
+
+```{r fig.height = fig_h, fig.width = fig_w}
+plot_ly(subset(album_words, Freq >= 4), x = ~words, y = ~Freq, type = "bar") %>%
+  layout(title = "Frequency of Most Common Words",
+         yaxis = n,
+         xaxis = list(title = "Words"),
+         margin =  list(t = 100,
+                       b = 100,
+                       pad = 0))
+```
+
+Looking at these words I thought a decent album name would be "Love You". Given how generic this name is, I did a quick google search only to find that the Beach Boys beat me to it: https://en.wikipedia.org/wiki/The_Beach_Boys_Love_You
+
+
+# The Evolution of Rock
+
+Since rock is the most popular genre on the list, I felt that it would be worth taking a closer look to see how it has evolved over the years.
+
+```{r fig.height = fig_h, fig.width = fig_w}
+#find the most common Roch subgenre by year
+rock_year <- subset(df, Genre == 'Rock') %>% 
+  group_by(Year) %>% 
+  summarise(subgenre = names(table(Subgenre))[which.max(table(Subgenre))])
+
+plot_ly(rock_year, x = ~Year, y = ~subgenre, type = "scatter", mode = "markers", color = ~subgenre, colors = "Set1",
+        marker = list(size = 10), hoverinfo = c("y+x")) %>%
+  layout(showlegend = FALSE,
+         margin = list(l = 200,
+                       t = 100,
+                       b = 100,
+                       pad = 0),
+         yaxis = list(title = "Subgenres of Rock"),
+         title = "Most Popular Subgenre of Rock by Year")
+```
+
+I thought we might see a stronger trend in the data here, but the only thing that stands out to me is the popularity of Alternative Rock and Indie Rock since 1992. There are a few years, such as 1990 and 1996, that are absent from this plot. This means that there was not a rock album that made the list during these years.
+
+
+
